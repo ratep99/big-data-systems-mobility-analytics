@@ -1,0 +1,5 @@
+# Ignore venv directory
+venv/
+
+# Ignore large CSV file
+data/large_file.csv
