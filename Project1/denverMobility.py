@@ -1,13 +1,12 @@
-import pyspark.sql
 from pyspark import SparkConf
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import *
-import pyspark.sql.functions as F
 from pyspark.sql.functions import col
 
-#Method used to get cleaned dataset, ready for analysis
-'''
-def cleanData():
+# Method used to get cleaned dataset, ready for analysis
+
+''' 
+def clean_data(spark):
     # Read the denverVehicles.csv file
     vehicles_df = spark.read.csv("data/denverVehicles.csv", header=True, inferSchema=True)
 
@@ -39,8 +38,8 @@ def cleanData():
         *['posLat', 'slope', 'signals', 'datetime', 'timestamp2', 'new_time', 'angle'])
 
     # Reorder the columns in the dataframe
-    #vehicles_df = vehicles_df.select("timestamp", "id", "type", "latitude", "longitude",
-                                 #    "speed_kmh", "acceleration", "distance", "odometer", "pos", "lane")
+    vehicles_df = vehicles_df.select("timestamp", "id", "type", "latitude", "longitude",
+                                     "speed_kmh", "acceleration", "distance", "odometer", "pos", "lane")
 
     vehicle_counts = vehicles_df.groupBy("id").agg(count("id").alias("count"))
 
@@ -59,27 +58,190 @@ def cleanData():
     vehicles_df = vehicles_df.sort(vehicles_df["speed_kmh"])
     vehicles_df.show()
 
+    # vehicles_df.coalesce(1).write.format("csv").option("header", "true").save("denverVehiclesCleaned.csv")
+'''
 
-    #vehicles_df.coalesce(1).write.format("csv").option("header", "true").save("denverVehiclesCleaned.csv")
- '''
-# Initialize Spark Application name
-if __name__ == '__main__':
-    #if len(sys.argv) < 2:
-     #   print("Usage: main.py <input folder> ")
-      #  exit(-1)
-    appName = "DenverMobility"
+DATA_PATH = "hdfs://namenode:9000/dir/denverVehiclesCleaned.csv"
+SPARK_MASTER = "spark://spark-master:7077"
+APP_NAME = "DenverMobility"
+STATISTIC_CRITERIA = "speed_kmh"
 
+
+def initialization():
     # Define Spark Configuration
     conf = SparkConf()
-    conf.setMaster("spark://spark-master:7077")
-    spark = SparkSession.builder.config(conf=conf).appName(appName).getOrCreate()
+    conf.setMaster(SPARK_MASTER)
+    spark_session = SparkSession.builder.config(conf=conf).appName(APP_NAME).getOrCreate()
 
     # Set the log level to ERROR to reduce the amount of output
-    spark.sparkContext.setLogLevel("ERROR")
+    spark_session.sparkContext.setLogLevel("ERROR")
+    data_frame = spark_session.read.csv(DATA_PATH, header=True, inferSchema=True)
 
-    cleaned_df = spark.read.csv(sys.argv[1], header=True, inferSchema=True)
-    #cleaned_df.show()
+    return spark_session, data_frame
 
+
+def filter_vehicles_in_timespan(data_frame, start_time, end_time):
+    return data_frame.filter((col("timestamp").between(start_time, end_time)))
+
+
+def filter_vehicles_by_type_in_timespan(data_frame, vehicle_type, start_time, end_time):
+    return data_frame.filter((col("type") == vehicle_type) & (col("timestamp").between(start_time, end_time)))
+
+
+def filter_vehicles_in_location(data_frame, latitude_1, longitude_1, latitude_2, longitude_2):
+    return data_frame.filter((col("latitude").between(latitude_1, latitude_2)) & (col("longitude").between(longitude_1, longitude_2)))
+
+
+def filter_vehicles_by_type_in_location(data_frame, vehicle_type, latitude_1, longitude_1, latitude_2, longitude_2):
+    return data_frame.filter((col("type") == vehicle_type) &
+                             (col("latitude").between(latitude_1, latitude_2)) & (col("longitude").between(longitude_1, longitude_2)))
+
+
+def filter_vehicles_by_type_in_timespan_and_location(data_frame, vehicle_type, start_time, end_time,
+                                                     latitude_1, longitude_1, latitude_2, longitude_2):
+    return data_frame.filter((col("type") == vehicle_type) &
+                             (col("timestamp").between(start_time, end_time)) &
+                             (col("latitude").between(latitude_1, latitude_2)) & (col("longitude").between(longitude_1, longitude_2)))
+
+
+def calculate_statistics(data_frame, statistic_criteria):
+    """
+    Calculates statistics for a given DataFrame.
+
+    Args:
+        data_frame (DataFrame): The input DataFrame.
+        statistic_criteria (str): The column name for which statistics are calculated.
+
+    Returns:
+        tuple: A tuple containing the calculated statistics in the order (mean, max, min, stddev).
+    """
+    # Calculate the statistics
+    return data_frame.agg(
+        mean(statistic_criteria),
+        max(statistic_criteria),
+        min(statistic_criteria),
+        stddev(statistic_criteria)
+    ).collect()[0]
+
+
+def count_vehicles_above_threshold(data_frame: DataFrame, column: str, threshold: float) -> int:
+    """
+    Counts the number of vehicles that have a column value above a given threshold.
+
+    Args:
+        data_frame (DataFrame): The input DataFrame.
+        column (str): The column name for the specified attribute.
+        threshold (float): The column value threshold.
+
+    Returns:
+        int: The count of vehicles with column values above the threshold.
+    """
+    # Check if the data_frame parameter is a DataFrame
+    if not isinstance(data_frame, DataFrame):
+        raise TypeError("data_frame parameter must be a DataFrame")
+
+    # Check if the column parameter is a string
+    if not isinstance(column, str):
+        raise TypeError("column parameter must be a string")
+
+    # Check if the threshold parameter is a float
+    if not isinstance(threshold, float):
+        raise TypeError("threshold parameter must be a float")
+
+    # Filter vehicles above the threshold
+    high_attribute_vehicles = data_frame.filter(col(column) > threshold)
+
+    # Count the high attribute vehicles
+    count = high_attribute_vehicles.count()
+
+    return count
+
+
+from pyspark.sql import DataFrame
+from pyspark.sql.functions import col
+
+def print_vehicles_above_threshold(data_frame: DataFrame, column: str, threshold: float) -> None:
+    """
+    Prints the attributes of vehicles that have a column value above a given threshold.
+
+    Args:
+        data_frame (DataFrame): The input DataFrame.
+        column (str): The column name for the specified attribute.
+        threshold (float): The column value threshold.
+
+    Returns:
+        None
+    """
+    # Check if the data_frame parameter is a DataFrame
+    if not isinstance(data_frame, DataFrame):
+        raise TypeError("data_frame parameter must be a DataFrame")
+
+    # Check if the column parameter is a string
+    if not isinstance(column, str):
+        raise TypeError("column parameter must be a string")
+
+    # Check if the threshold parameter is a float
+    if not isinstance(threshold, float):
+        raise TypeError("threshold parameter must be a float")
+
+    # Filter vehicles above the threshold
+    high_attribute_vehicles = data_frame.filter(col(column) > threshold)
+
+    # Collect the attributes of high attribute vehicles
+    attributes = high_attribute_vehicles.collect()
+
+    # Print the attributes of high attribute vehicles
+    for row in attributes:
+        print(row.asDict())
+
+
+
+def print_statistics(statistics):
+    """
+    Prints the statistics.
+
+    Args:
+        statistics (tuple): A tuple containing the statistics in the order (mean, max, min, stddev).
+    """
+    # Print the statistics
+    print("Mean: ", statistics[0])
+    print("Max: ", statistics[1])
+    print("Min: ", statistics[2])
+    print("Standard Deviation: ", statistics[3])
+
+
+# Main entry point of the application
+if __name__ == '__main__':
+    # Check the number of command-line arguments
+    if len(sys.argv) < 3 | len(sys.argv) > 8:
+        print("Usage: main.py <input folder> ")
+        exit(-1)
+
+    # Initialize Spark session and DataFrame
+    spark, df = initialization()
+
+    if len(sys.argv) == 3:
+        filtered_df = filter_vehicles_in_timespan(df, sys.argv[1], sys.argv[2])
+    elif len(sys.argv) == 4:
+        filtered_df = filter_vehicles_by_type_in_timespan(df, sys.argv[1], sys.argv[2], sys.argv[3])
+    elif len(sys.argv) == 5:
+        filtered_df = filter_vehicles_in_location(df, sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4])
+    elif len(sys.argv) == 6:
+        filtered_df = filter_vehicles_by_type_in_location(df, sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4], sys.argv[5])
+    elif len(sys.argv) == 8:
+        filtered_df = filter_vehicles_by_type_in_timespan_and_location(df, sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4],
+                                                                       sys.argv[5], sys.argv[6], sys.argv[7])
+
+    # Calculate the statistics for the filtered DataFrame
+    calculated_statistics = calculate_statistics(filtered_df, STATISTIC_CRITERIA)
+
+    # Print the statistics    
+    print_statistics(calculated_statistics)
+
+    # Stop the Spark session
+    spark.stop()
+
+    ''' 
     # Define the start and end timestamps
     start_time = "2023-02-11 09:00:00"
     end_time = "2023-02-11 10:00:00"
@@ -91,8 +253,7 @@ if __name__ == '__main__':
     end_longitude = 0
 
     # Filter the DataFrame to get the data for the car type vehicles between start_time and end_time
-    df_filtered = cleaned_df.filter((col("type") == "car") & (col("timestamp").between(start_time, end_time)))
-
+    df_filtered = df.filter((col("type") == "car") & (col("timestamp").between(start_time, end_time)))
 
     df_filtered.show()
     print("Filtrirano")
@@ -116,7 +277,9 @@ if __name__ == '__main__':
     print("Standard deviation of odometer: ", odo_stats[3])
 
     # Calculate the statistics for acceleration
-    acc_stats = df_filtered.agg(mean("acceleration"), max("acceleration"), min("acceleration"), stddev("acceleration")).collect()[0]
+    acc_stats = \
+        df_filtered.agg(mean("acceleration"), max("acceleration"), min("acceleration"),
+                        stddev("acceleration")).collect()[0]
 
     # Print the statistics for acceleration
     print("Mean acceleration: ", acc_stats[0])
@@ -124,7 +287,5 @@ if __name__ == '__main__':
     print("Min acceleration: ", acc_stats[2])
     print("Standard deviation of acceleration: ", acc_stats[3])
     # Show the statistics in a table-like format
-    #df_statistics.show()
-
-    spark.stop()
-
+    # df_statistics.show()
+    '''
