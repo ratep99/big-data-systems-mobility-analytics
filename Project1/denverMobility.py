@@ -124,6 +124,9 @@ def calculate_statistics(data_frame, statistic_criteria):
     ).collect()[0]
 
 
+from pyspark.sql import DataFrame
+from pyspark.sql.functions import col
+
 def count_vehicles_above_threshold(data_frame: DataFrame, column: str, threshold: float) -> int:
     """
     Counts the number of vehicles that have a column value above a given threshold.
@@ -151,14 +154,12 @@ def count_vehicles_above_threshold(data_frame: DataFrame, column: str, threshold
     # Filter vehicles above the threshold
     high_attribute_vehicles = data_frame.filter(col(column) > threshold)
 
-    # Count the high attribute vehicles
-    count = high_attribute_vehicles.count()
+    # Count the distinct "vehicle_id" values
+    count = high_attribute_vehicles.select("id").distinct().count()
 
     return count
 
 
-from pyspark.sql import DataFrame
-from pyspark.sql.functions import col
 
 def print_vehicles_above_threshold(data_frame: DataFrame, column: str, threshold: float) -> None:
     """
@@ -195,7 +196,6 @@ def print_vehicles_above_threshold(data_frame: DataFrame, column: str, threshold
         print(row.asDict())
 
 
-
 def print_statistics(statistics):
     """
     Prints the statistics.
@@ -219,9 +219,21 @@ if __name__ == '__main__':
 
     # Initialize Spark session and DataFrame
     spark, df = initialization()
+    # Get the command-line arguments
+    args = sys.argv
 
-    if len(sys.argv) == 3:
-        filtered_df = filter_vehicles_in_timespan(df, sys.argv[1], sys.argv[2])
+    # Print the number of arguments
+    num_args = len(args)
+    print("Number of arguments:", num_args)
+
+    # Print each argument
+    for arg in args:
+        print(arg)
+
+    if len(sys.argv) == 5:
+        first_datetime = sys.argv[1] + " " + sys.argv[2]
+        second_datetime = sys.argv[3] + " " + sys.argv[4]
+        filtered_df = filter_vehicles_in_timespan(df, first_datetime, second_datetime)
     elif len(sys.argv) == 4:
         filtered_df = filter_vehicles_by_type_in_timespan(df, sys.argv[1], sys.argv[2], sys.argv[3])
     elif len(sys.argv) == 5:
@@ -235,57 +247,10 @@ if __name__ == '__main__':
     # Calculate the statistics for the filtered DataFrame
     calculated_statistics = calculate_statistics(filtered_df, STATISTIC_CRITERIA)
 
-    # Print the statistics    
+    # Print the statistics
     print_statistics(calculated_statistics)
+
+    print("Number of vehicles above threshold :" + str(count_vehicles_above_threshold(filtered_df, "speed_kmh", 50.00)))
 
     # Stop the Spark session
     spark.stop()
-
-    ''' 
-    # Define the start and end timestamps
-    start_time = "2023-02-11 09:00:00"
-    end_time = "2023-02-11 10:00:00"
-
-    start_latitude = 0
-    start_longitude = 0
-
-    end_latitude = 0
-    end_longitude = 0
-
-    # Filter the DataFrame to get the data for the car type vehicles between start_time and end_time
-    df_filtered = df.filter((col("type") == "car") & (col("timestamp").between(start_time, end_time)))
-
-    df_filtered.show()
-    print("Filtrirano")
-
-    # Calculate the statistics
-    statistics = df_filtered.agg(mean("speed_kmh"), max("speed_kmh"), min("speed_kmh"), stddev("speed_kmh")).collect()[0]
-
-    # Print the statistics
-    print("Mean speed: ", statistics[0])
-    print("Max speed: ", statistics[1])
-    print("Min speed: ", statistics[2])
-    print("Standard deviation of speed: ", statistics[3])
-
-    # Calculate the statistics for odometer
-    odo_stats = df_filtered.agg(mean("odometer"), max("odometer"), min("odometer"), stddev("odometer")).collect()[0]
-
-    # Print the statistics for odometer
-    print("Mean odometer: ", odo_stats[0])
-    print("Max odometer: ", odo_stats[1])
-    print("Min odometer: ", odo_stats[2])
-    print("Standard deviation of odometer: ", odo_stats[3])
-
-    # Calculate the statistics for acceleration
-    acc_stats = \
-        df_filtered.agg(mean("acceleration"), max("acceleration"), min("acceleration"),
-                        stddev("acceleration")).collect()[0]
-
-    # Print the statistics for acceleration
-    print("Mean acceleration: ", acc_stats[0])
-    print("Max acceleration: ", acc_stats[1])
-    print("Min acceleration: ", acc_stats[2])
-    print("Standard deviation of acceleration: ", acc_stats[3])
-    # Show the statistics in a table-like format
-    # df_statistics.show()
-    '''

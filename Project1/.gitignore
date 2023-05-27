@@ -1,5 +1,7 @@
 # Ignore venv directory
 venv/
+data/
+.idea/
 
 # Ignore large CSV file
-data/large_file.csv
+*.csv
