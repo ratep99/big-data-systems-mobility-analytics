@@ -124,9 +124,6 @@ def calculate_statistics(data_frame, statistic_criteria):
     ).collect()[0]
 
 
-from pyspark.sql import DataFrame
-from pyspark.sql.functions import col
-
 def count_vehicles_above_threshold(data_frame: DataFrame, column: str, threshold: float) -> int:
     """
     Counts the number of vehicles that have a column value above a given threshold.
@@ -160,7 +157,6 @@ def count_vehicles_above_threshold(data_frame: DataFrame, column: str, threshold
     return count
 
 
-
 def print_vehicles_above_threshold(data_frame: DataFrame, column: str, threshold: float) -> None:
     """
     Prints the attributes of vehicles that have a column value above a given threshold.
@@ -190,7 +186,7 @@ def print_vehicles_above_threshold(data_frame: DataFrame, column: str, threshold
 
     # Collect the attributes of high attribute vehicles
     attributes = high_attribute_vehicles.collect()
-
+    print_step("Printing attributes of vehicles")
     # Print the attributes of high attribute vehicles
     for row in attributes:
         print(row.asDict())
@@ -204,10 +200,17 @@ def print_statistics(statistics):
         statistics (tuple): A tuple containing the statistics in the order (mean, max, min, stddev).
     """
     # Print the statistics
+    print_step("Printing statistics")
     print("Mean: ", statistics[0])
     print("Max: ", statistics[1])
     print("Min: ", statistics[2])
     print("Standard Deviation: ", statistics[3])
+
+
+def print_step(step):
+    print("*******************************************************************************")
+    print("----------------------------------- " + step + " -----------------------------------")
+    print("*******************************************************************************")
 
 
 # Main entry point of the application
@@ -224,24 +227,31 @@ if __name__ == '__main__':
 
     # Print the number of arguments
     num_args = len(args)
-    print("Number of arguments:", num_args)
+    print("Number of arguments        :", num_args)
 
     # Print each argument
     for arg in args:
         print(arg)
 
     if len(sys.argv) == 5:
-        first_datetime = sys.argv[1] + " " + sys.argv[2]
-        second_datetime = sys.argv[3] + " " + sys.argv[4]
-        filtered_df = filter_vehicles_in_timespan(df, first_datetime, second_datetime)
-    elif len(sys.argv) == 4:
-        filtered_df = filter_vehicles_by_type_in_timespan(df, sys.argv[1], sys.argv[2], sys.argv[3])
-    elif len(sys.argv) == 5:
-        filtered_df = filter_vehicles_in_location(df, sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4])
+        if "-" in sys.argv[1]:
+            first_datetime = sys.argv[1] + " " + sys.argv[2]
+            second_datetime = sys.argv[3] + " " + sys.argv[4]
+            filtered_df = filter_vehicles_in_timespan(df, first_datetime, second_datetime)
+        else:
+            filtered_df = filter_vehicles_in_location(df, sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4])
     elif len(sys.argv) == 6:
-        filtered_df = filter_vehicles_by_type_in_location(df, sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4], sys.argv[5])
-    elif len(sys.argv) == 8:
-        filtered_df = filter_vehicles_by_type_in_timespan_and_location(df, sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4],
+        if "-" in sys.argv[2]:
+            first_datetime = sys.argv[2] + " " + sys.argv[3]
+            second_datetime = sys.argv[4] + " " + sys.argv[5]
+            filtered_df = filter_vehicles_by_type_in_timespan(df, sys.argv[1], first_datetime, second_datetime)
+        else:
+            filtered_df = filter_vehicles_by_type_in_location(df, sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4], sys.argv[5])
+
+    elif len(sys.argv) == 10:
+        first_datetime = sys.argv[2] + " " + sys.argv[3]
+        second_datetime = sys.argv[4] + " " + sys.argv[5]
+        filtered_df = filter_vehicles_by_type_in_timespan_and_location(df, sys.argv[1], first_datetime, second_datetime, sys.argv[4],
                                                                        sys.argv[5], sys.argv[6], sys.argv[7])
 
     # Calculate the statistics for the filtered DataFrame
@@ -249,8 +259,8 @@ if __name__ == '__main__':
 
     # Print the statistics
     print_statistics(calculated_statistics)
-
+    print_step("Printing vehicles above threshold")
     print("Number of vehicles above threshold :" + str(count_vehicles_above_threshold(filtered_df, "speed_kmh", 50.00)))
-
+    print_vehicles_above_threshold(df, "speed_kmh", 80.00)
     # Stop the Spark session
     spark.stop()
