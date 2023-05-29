@@ -224,15 +224,7 @@ if __name__ == '__main__':
     spark, df = initialization()
     # Get the command-line arguments
     args = sys.argv
-
-    # Print the number of arguments
-    num_args = len(args)
-    print("Number of arguments        :", num_args)
-
-    # Print each argument
-    for arg in args:
-        print(arg)
-
+    
     if len(sys.argv) == 5:
         if "-" in sys.argv[1]:
             first_datetime = sys.argv[1] + " " + sys.argv[2]
@@ -246,13 +238,13 @@ if __name__ == '__main__':
             second_datetime = sys.argv[4] + " " + sys.argv[5]
             filtered_df = filter_vehicles_by_type_in_timespan(df, sys.argv[1], first_datetime, second_datetime)
         else:
-            filtered_df = filter_vehicles_by_type_in_location(df, sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4], sys.argv[5])
-
+            filtered_df = filter_vehicles_by_type_in_location(df, sys.argv[1], sys.argv[2],
+                                                              sys.argv[3], sys.argv[4], sys.argv[5])
     elif len(sys.argv) == 10:
         first_datetime = sys.argv[2] + " " + sys.argv[3]
         second_datetime = sys.argv[4] + " " + sys.argv[5]
-        filtered_df = filter_vehicles_by_type_in_timespan_and_location(df, sys.argv[1], first_datetime, second_datetime, sys.argv[4],
-                                                                       sys.argv[5], sys.argv[6], sys.argv[7])
+        filtered_df = filter_vehicles_by_type_in_timespan_and_location(df, sys.argv[1], first_datetime, second_datetime,
+                                                                       sys.argv[4], sys.argv[5], sys.argv[6], sys.argv[7])
 
     # Calculate the statistics for the filtered DataFrame
     calculated_statistics = calculate_statistics(filtered_df, STATISTIC_CRITERIA)
